@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, Loader2, LogIn, ShieldHalf } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, LogIn, ShieldHalf } from "lucide-react";
+import { login, ApiError } from "@/lib/api";
 
 // 12 cometas a 30° entre sí, con duración/retraso variados para que no se
 // vean sincronizadas.
@@ -17,11 +19,11 @@ interface Cometa {
   duration: number;
 }
 
-const ANALISTAS_PLACEHOLDER = ["analista.demo"];
-
 export default function Home() {
-  const [nombre, setNombre] = useState(ANALISTAS_PLACEHOLDER[0]);
-  const [pin, setPin] = useState("");
+  const router = useRouter();
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
@@ -36,15 +38,22 @@ export default function Home() {
     );
   }, []);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setCargando(true);
-    // Placeholder: sin autenticación real todavía.
-    setTimeout(() => {
+    try {
+      await login(username, password);
+      router.push("/home");
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? "Usuario o contraseña incorrectos."
+          : "No se pudo conectar con el servidor."
+      );
+    } finally {
       setCargando(false);
-      setError("Login no implementado — esto es solo el placeholder visual.");
-    }, 500);
+    }
   }
 
   return (
@@ -72,6 +81,9 @@ export default function Home() {
             strokeWidth={1.5}
             style={{ color: "var(--c-accent)" }}
           />
+          <h1 className="text-lg font-semibold tracking-tight" style={{ color: "var(--c-text)" }}>
+            XSIAM-sito
+          </h1>
           <p className="text-xs tracking-widest" style={{ color: "var(--c-text-3)" }}>
             Iniciar sesión
           </p>
@@ -84,51 +96,43 @@ export default function Home() {
         >
           <div className="flex flex-col gap-1.5">
             <label
+              htmlFor="username"
               className="text-xs font-mono font-semibold tracking-wider"
               style={{ color: "var(--c-text-2)" }}
             >
-              ANALISTA
+              USUARIO
             </label>
-            <div className="relative">
-              <select
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                className="appearance-none w-full rounded-lg pl-3 pr-9 py-2.5 text-sm font-mono outline-none border transition cursor-pointer"
-                style={{
-                  background: "var(--c-surface-raised)",
-                  borderColor: "var(--c-border)",
-                  color: "var(--c-text)",
-                }}
-              >
-                {ANALISTAS_PLACEHOLDER.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: "var(--c-text-3)" }}
-              />
-            </div>
+            <input
+              id="username"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="analista.demo"
+              className="w-full rounded-lg px-3 py-2.5 text-sm font-mono outline-none border transition"
+              style={{
+                background: "var(--c-surface-raised)",
+                borderColor: "var(--c-border)",
+                color: "var(--c-text)",
+              }}
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label
+              htmlFor="password"
               className="text-xs font-mono font-semibold tracking-wider"
               style={{ color: "var(--c-text-2)" }}
             >
-              PIN
+              CONTRASEÑA
             </label>
             <input
+              id="password"
               type="password"
-              inputMode="numeric"
               autoComplete="current-password"
-              maxLength={6}
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-              placeholder="••••••"
-              className="w-full rounded-lg px-3 py-2.5 text-sm font-mono outline-none border tracking-[0.4em] transition"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full rounded-lg px-3 py-2.5 text-sm font-mono outline-none border transition"
               style={{
                 background: "var(--c-surface-raised)",
                 borderColor: "var(--c-border)",
@@ -152,7 +156,7 @@ export default function Home() {
 
           <button
             type="submit"
-            disabled={cargando || pin.length === 0}
+            disabled={cargando || !username || !password}
             className="btn-press flex items-center justify-center gap-2 px-4 py-2.5 mt-1 rounded-lg text-sm font-bold transition disabled:opacity-50"
             style={{ background: "var(--c-accent)", color: "var(--c-on-accent)" }}
           >

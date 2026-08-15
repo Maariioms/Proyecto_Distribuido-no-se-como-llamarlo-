@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SOC MVP",
+  title: "XSIAM-sito",
   description: "Monolito MVC — Sistemas Distribuidos",
 };
 

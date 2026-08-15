@@ -43,9 +43,23 @@
 
   --ease-io:     cubic-bezier(0.22, 1, 0.36, 1);
   --dur-press:   120ms;
+  --dur-rapido:  180ms;
   --dur-modal:   240ms;
+  --stagger:     50ms;
+
+  --shadow-1: 0 1px 2px rgba(0,0,0,.24), 0 1px 1px rgba(0,0,0,.16);
+  --shadow-2: 0 4px 10px rgba(0,0,0,.28), 0 1px 2px rgba(0,0,0,.20);
 
   color-scheme: dark;
+}
+
+/* Paleta de severidad — datos, no chrome: fija, no cambia por tema
+   (skill §1, "the one deliberate exception"). */
+:root {
+  --sev-critical: #fb7185;
+  --sev-high:     #f87171;
+  --sev-medium:   #fbbf24;
+  --sev-low:      #4ade80;
 }
 
 * { box-sizing: border-box; }
@@ -139,9 +153,21 @@ select:focus-visible {
   100% { transform: translateX(90vmax)  scaleX(1.6);  opacity: 0; }
 }
 
+/* Entrada escalonada de filas/cards (fade + subida sutil), delay por
+   índice vía --i. */
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card-in {
+  animation: card-in var(--dur-modal) var(--ease-io) both;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glow-pulse,
-  .comet {
+  .comet,
+  .card-in {
     animation: none !important;
   }
   .btn-press {
