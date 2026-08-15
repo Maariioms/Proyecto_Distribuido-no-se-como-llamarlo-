@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+/* ════════════════════════════════════════════════════════════════════════
+   Tema oscuro — tonos morados.
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  --c-bg:             #0f0a1e;
+  --c-surface:        #170f2e;
+  --c-surface-alt:    #1e1440;
+  --c-surface-raised: #0d0820;
+  --c-overlay:        rgba(12, 8, 24, 0.85);
+
+  --c-border:         #2d1e4a;
+  --c-border-strong:  #4a2a7a;
+  --c-border-accent:  #6a3aaa;
+
+  --c-text:           #f0e8fe;
+  --c-text-2:         #a06adb;
+  --c-text-3:         #6a3d8a;
+  --c-text-dim:       #4a2a7a;
+
+  --c-accent:         #9a4ad9;
+  --c-accent-2:       #c37af5;
+  --c-accent-bg:      #3a1e5a;
+
+  --c-primary:        #9a4ad9;
+  --c-primary-hover:  #a95ae8;
+  --c-on-primary:     #ffffff;
+  --c-on-accent:      #ffffff;
+
+  --c-success:        #4ade80;
+  --c-error:          #f87171;
+  --c-warning:        #fbbf24;
+
+  --c-scrollbar-track: #0b0616;
+  --c-scrollbar-thumb: #2d1e4a;
+  --c-scrollbar-hover: #4a2a7a;
+
+  --color-neon-purple: #B200FF;
+  --color-neon-pink:    #FF3399;
+  --c-neon-glow:        rgba(178, 0, 255, 0.30);
+  --c-neon-glow-soft:   rgba(178, 0, 255, 0.16);
+
+  --ease-io:     cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-press:   120ms;
+  --dur-modal:   240ms;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html { scrollbar-gutter: stable both-edges; }
+
+body {
+  background-color: var(--c-bg);
+  color: var(--c-text);
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--c-scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--c-scrollbar-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--c-scrollbar-hover); }
+
+input::placeholder,
+textarea::placeholder {
+  color:   var(--c-text-3);
+  opacity: 1;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  box-shadow: 0 0 0 1px var(--c-neon-glow-soft),
+              0 0 10px var(--c-neon-glow);
+  border-color: var(--color-neon-purple) !important;
+}
+
+.btn-press {
+  transition: transform var(--dur-press) var(--ease-io);
+}
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Glow "respirando" para el logo del login.
+   ════════════════════════════════════════════════════════════════════════ */
+@keyframes glow-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c-accent) 40%, transparent));
+  }
+  50% {
+    filter: drop-shadow(0 0 22px color-mix(in srgb, var(--c-accent) 90%, transparent));
+  }
+}
+.glow-pulse {
+  animation: glow-pulse 2.6s ease-in-out infinite;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   "Cometas" del login: estelas que salen del centro hacia afuera.
+   ════════════════════════════════════════════════════════════════════════ */
+.comet-field {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.comet-arm {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+}
+.comet {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 180px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--c-accent-2) 95%, transparent) 0%,
+    color-mix(in srgb, var(--c-accent) 55%, transparent) 45%,
+    transparent 100%
+  );
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--c-accent) 65%, transparent));
+  opacity: 0;
+  animation: comet-fly 3.2s ease-out infinite;
+}
+@keyframes comet-fly {
+  0%   { transform: translateX(0)       scaleX(0.35); opacity: 0; }
+  12%  { opacity: 1; }
+  70%  { opacity: 0.5; }
+  100% { transform: translateX(90vmax)  scaleX(1.6);  opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-pulse,
+  .comet {
+    animation: none !important;
+  }
+  .btn-press {
+    transition: none;
+  }
+  .btn-press:active {
+    transform: none;
+  }
+}
