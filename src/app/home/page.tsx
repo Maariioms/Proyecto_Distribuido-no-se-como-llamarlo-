@@ -1,49 +1,46 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { AlertTriangle, ShieldHalf, Radio, Activity } from "lucide-react";
+import { listEvents, getStatus, type Event, type ServiceStatus } from "@/lib/api";
 
-type Severidad = "critical" | "high" | "medium" | "low";
-
-interface EventoSOC {
-  id: string;
-  fuente: string;
-  tipo: string;
-  severidad: Severidad;
-  estado: "abierto" | "en revisión" | "cerrado";
-  timestamp: string;
-}
-
-const SEVERIDAD_LABEL: Record<Severidad, string> = {
+const SEVERIDAD_LABEL: Record<string, string> = {
   critical: "Crítica",
   high: "Alta",
   medium: "Media",
   low: "Baja",
 };
 
-const SEVERIDAD_COLOR: Record<Severidad, string> = {
+const SEVERIDAD_COLOR: Record<string, string> = {
   critical: "var(--sev-critical)",
   high: "var(--sev-high)",
   medium: "var(--sev-medium)",
   low: "var(--sev-low)",
 };
 
-const EVENTOS_MOCK: EventoSOC[] = [
-  { id: "EVT-1042", fuente: "fw-edge-01", tipo: "Tráfico saliente anómalo", severidad: "critical", estado: "abierto", timestamp: "2026-08-14 21:03" },
-  { id: "EVT-1041", fuente: "endpoint-victor-laptop", tipo: "Proceso no firmado ejecutado", severidad: "high", estado: "en revisión", timestamp: "2026-08-14 20:47" },
-  { id: "EVT-1040", fuente: "vpn-gateway", tipo: "Login desde IP no reconocida", severidad: "medium", estado: "en revisión", timestamp: "2026-08-14 20:12" },
-  { id: "EVT-1039", fuente: "dns-resolver", tipo: "Consulta a dominio DGA sospechoso", severidad: "high", estado: "abierto", timestamp: "2026-08-14 19:58" },
-  { id: "EVT-1038", fuente: "endpoint-ana-desktop", tipo: "Escaneo de puertos interno", severidad: "medium", estado: "cerrado", timestamp: "2026-08-14 18:30" },
-  { id: "EVT-1037", fuente: "mail-gateway", tipo: "Adjunto con macro sospechosa bloqueado", severidad: "low", estado: "cerrado", timestamp: "2026-08-14 17:15" },
-];
-
-const RESUMEN = {
-  eventosHoy: 37,
-  alertasCriticas: EVENTOS_MOCK.filter((e) => e.severidad === "critical").length,
-  agentesActivos: 14,
-  agentesTotal: 16,
-};
-
 export default function HomePage() {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [status, setStatus] = useState<ServiceStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [eventsData, statusData] = await Promise.all([listEvents(), getStatus()]);
+        setEvents(eventsData);
+        setStatus(statusData);
+      } catch {
+        setError("No se pudo conectar con el middleware.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  const criticas = events.filter((e) => e.severity === "critical").length;
+
   return (
     <div className="min-h-screen">
       <header
@@ -67,26 +64,32 @@ export default function HomePage() {
             Resumen
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--c-text-2)" }}>
-            Estado de la red en las últimas 24 horas.
+            Datos en vivo desde el backend, vía middleware.
           </p>
         </div>
+
+        {error && (
+          <p className="text-sm" style={{ color: "var(--sev-critical)" }}>
+            {error}
+          </p>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <StatCard
             icon={<Activity size={18} />}
-            label="Eventos hoy"
-            value={RESUMEN.eventosHoy.toString()}
+            label="Eventos registrados"
+            value={loading ? "…" : events.length.toString()}
           />
           <StatCard
             icon={<AlertTriangle size={18} />}
-            label="Alertas críticas abiertas"
-            value={RESUMEN.alertasCriticas.toString()}
+            label="Eventos críticos"
+            value={loading ? "…" : criticas.toString()}
             accentColor="var(--sev-critical)"
           />
           <StatCard
             icon={<Radio size={18} />}
-            label="Agentes activos"
-            value={`${RESUMEN.agentesActivos} / ${RESUMEN.agentesTotal}`}
+            label={status ? `Nodo ${status.service_id}` : "Nodo status"}
+            value={status ? status.uptime : "…"}
           />
         </div>
 
@@ -107,15 +110,13 @@ export default function HomePage() {
                     style={{ color: "var(--c-text-3)", borderBottom: "1px solid var(--c-border)" }}
                   >
                     <th className="px-4 py-3 font-medium">ID</th>
-                    <th className="px-4 py-3 font-medium">Fuente</th>
                     <th className="px-4 py-3 font-medium">Tipo</th>
                     <th className="px-4 py-3 font-medium">Severidad</th>
-                    <th className="px-4 py-3 font-medium">Estado</th>
                     <th className="px-4 py-3 font-medium">Hora</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {EVENTOS_MOCK.map((ev, i) => (
+                  {events.map((ev, i) => (
                     <tr
                       key={ev.id}
                       className="card-in"
@@ -128,26 +129,27 @@ export default function HomePage() {
                       <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--c-text-2)" }}>
                         {ev.id}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--c-text)" }}>
-                        {ev.fuente}
-                      </td>
                       <td className="px-4 py-3" style={{ color: "var(--c-text)" }}>
-                        {ev.tipo}
+                        {ev.type}
                       </td>
                       <td className="px-4 py-3">
-                        <SeverityPill severidad={ev.severidad} />
-                      </td>
-                      <td className="px-4 py-3 capitalize" style={{ color: "var(--c-text-2)" }}>
-                        {ev.estado}
+                        <SeverityPill severidad={ev.severity} />
                       </td>
                       <td
                         className="px-4 py-3 font-mono text-xs tabular-nums"
                         style={{ color: "var(--c-text-3)" }}
                       >
-                        {ev.timestamp}
+                        {new Date(ev.created_at).toLocaleString()}
                       </td>
                     </tr>
                   ))}
+                  {!loading && events.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-6 text-center text-xs" style={{ color: "var(--c-text-3)" }}>
+                        Sin eventos todavía.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -198,8 +200,8 @@ function StatCard({
   );
 }
 
-function SeverityPill({ severidad }: { severidad: Severidad }) {
-  const color = SEVERIDAD_COLOR[severidad];
+function SeverityPill({ severidad }: { severidad: string }) {
+  const color = SEVERIDAD_COLOR[severidad] ?? "var(--c-text-3)";
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
@@ -214,7 +216,7 @@ function SeverityPill({ severidad }: { severidad: Severidad }) {
         style={{ background: color }}
         aria-hidden="true"
       />
-      {SEVERIDAD_LABEL[severidad]}
+      {SEVERIDAD_LABEL[severidad] ?? severidad}
     </span>
   );
 }

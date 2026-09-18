@@ -33,8 +33,12 @@ func (c *AccountController) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	account, err := c.repo.Create(r.Context(), req.Username, req.Password)
+	if errors.Is(err, repository.ErrUsernameTaken) {
+		http.Error(w, "username already taken", http.StatusConflict)
+		return
+	}
 	if err != nil {
-		http.Error(w, "username already taken or invalid", http.StatusConflict)
+		http.Error(w, "could not create account", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusCreated, account)

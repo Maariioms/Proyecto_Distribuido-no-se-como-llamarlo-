@@ -15,34 +15,56 @@ services:
       timeout: 5s
       retries: 10
 
-  backend-1:
+  accounts:
     build: ./backend
     environment:
+      SERVICE_ID: "accounts-1"
       DATABASE_URL: "host=postgres user=soc password=soc dbname=soc port=5432 sslmode=disable"
       PORT: "8080"
     depends_on:
       postgres:
         condition: service_healthy
 
-  backend-2:
-    build: ./backend
+  events:
+    build: ./events
     environment:
+      SERVICE_ID: "events-1"
       DATABASE_URL: "host=postgres user=soc password=soc dbname=soc port=5432 sslmode=disable"
       PORT: "8080"
     depends_on:
       postgres:
         condition: service_healthy
+
+  status:
+    build: ./status
+    environment:
+      SERVICE_ID: "status-1"
+      SQLITE_PATH: "/data/status.db"
+      PORT: "8080"
+    volumes:
+      - statusdata:/data
 
   middleware:
     build: ./middleware
     environment:
-      WORKERS: "http://backend-1:8080,http://backend-2:8080"
       PORT: "9000"
     ports:
       - "9000:9000"
     depends_on:
-      - backend-1
-      - backend-2
+      - accounts
+      - events
+      - status
+
+  frontend:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:9000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - middleware
 
 volumes:
   pgdata:
+  statusdata:

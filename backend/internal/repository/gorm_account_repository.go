@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -32,7 +33,10 @@ func (r *GormAccountRepository) Create(ctx context.Context, username, password s
 	}
 
 	if err := r.db.WithContext(ctx).Create(&account).Error; err != nil {
-		return model.Account{}, err
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return model.Account{}, ErrUsernameTaken
+		}
+		return model.Account{}, fmt.Errorf("creating account: %w", err)
 	}
 
 	return account, nil

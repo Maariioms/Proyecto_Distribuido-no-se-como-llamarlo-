@@ -13,6 +13,9 @@ var ErrNotFound = errors.New("resource not found")
 // ErrInvalidCredentials indica username inexistente o password incorrecto.
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
+// ErrUsernameTaken indica que ya existe una cuenta con ese username.
+var ErrUsernameTaken = errors.New("username already taken")
+
 // AccountRepository define el contrato de acceso a datos para cuentas.
 // El controller depende de esta interfaz, no de la implementación concreta.
 type AccountRepository interface {
