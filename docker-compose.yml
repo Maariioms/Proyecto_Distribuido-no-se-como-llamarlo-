@@ -55,6 +55,15 @@ services:
       - events
       - status
 
+  nginx-gateway:
+    build: ./nginx-gateway
+    ports:
+      - "8000:8000"
+    depends_on:
+      - accounts
+      - events
+      - status
+
   frontend:
     build:
       context: .
