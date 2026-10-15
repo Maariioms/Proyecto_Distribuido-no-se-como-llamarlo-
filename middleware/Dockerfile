@@ -8,6 +8,6 @@ RUN go build -o /soc-middleware .
 FROM alpine:3.19
 WORKDIR /app
 COPY --from=build /soc-middleware /app/soc-middleware
-COPY services.json /app/services.json
+COPY routes.json /app/routes.json
 EXPOSE 9000
 CMD ["/app/soc-middleware"]

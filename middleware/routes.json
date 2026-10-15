@@ -1,0 +1,5 @@
+[
+  { "prefix": "/api/accounts", "service": "accounts" },
+  { "prefix": "/api/events", "service": "events" },
+  { "prefix": "/health", "service": "status" }
+]

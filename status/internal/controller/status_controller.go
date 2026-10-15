@@ -22,6 +22,13 @@ func Status(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Heartbeat es la ruta que revisa Consul cada 5s. Va aparte de Status a
+// proposito: Status cuenta cada llamada en checks_done y escribe en SQLite,
+// y no queremos que el health check de Consul infle ese contador.
+func Heartbeat(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

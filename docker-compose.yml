@@ -15,13 +15,24 @@ services:
       timeout: 5s
       retries: 10
 
+  consul:
+    image: hashicorp/consul:latest
+    command: agent -dev -client=0.0.0.0 -ui
+    ports:
+      - "8500:8500"
+
   accounts:
     build: ./backend
     environment:
       SERVICE_ID: "accounts-1"
+      SERVICE_NAME: "accounts"
+      SERVICE_ADDRESS: "accounts"
+      CONSUL_HTTP_ADDR: "http://consul:8500"
       DATABASE_URL: "host=postgres user=soc password=soc dbname=soc port=5432 sslmode=disable"
       PORT: "8080"
     depends_on:
+      consul:
+        condition: service_started
       postgres:
         condition: service_healthy
 
@@ -29,9 +40,14 @@ services:
     build: ./events
     environment:
       SERVICE_ID: "events-1"
+      SERVICE_NAME: "events"
+      SERVICE_ADDRESS: "events"
+      CONSUL_HTTP_ADDR: "http://consul:8500"
       DATABASE_URL: "host=postgres user=soc password=soc dbname=soc port=5432 sslmode=disable"
       PORT: "8080"
     depends_on:
+      consul:
+        condition: service_started
       postgres:
         condition: service_healthy
 
@@ -39,18 +55,25 @@ services:
     build: ./status
     environment:
       SERVICE_ID: "status-1"
+      SERVICE_NAME: "status"
+      SERVICE_ADDRESS: "status"
+      CONSUL_HTTP_ADDR: "http://consul:8500"
       SQLITE_PATH: "/data/status.db"
       PORT: "8080"
     volumes:
       - statusdata:/data
+    depends_on:
+      - consul
 
   middleware:
     build: ./middleware
     environment:
+      CONSUL_HTTP_ADDR: "http://consul:8500"
       PORT: "9000"
     ports:
       - "9000:9000"
     depends_on:
+      - consul
       - accounts
       - events
       - status
