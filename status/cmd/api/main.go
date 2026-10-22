@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,8 +15,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	_ "github.com/mattn/go-sqlite3"
 
+	statusv1 "soc-mvp-distribuido/status/gen/statuspb/status/v1"
 	"soc-mvp-distribuido/status/internal/consul"
 	"soc-mvp-distribuido/status/internal/controller"
+	"soc-mvp-distribuido/status/internal/grpcserver"
 )
 
 func main() {
@@ -46,20 +49,45 @@ func main() {
 		port = "8080"
 	}
 
-	// Consul revisa /heartbeat (no /health) cada 5s para saber si seguimos vivos.
+	// ---- grpc ----
+	// ahora el servicio tiene DOS puertos -> el http de siempre en el 8080 y este grpc
+	// los dos usan el mismo Tracker que es el Singleton y solo cambia como llegan las peticiones
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "50051"
+	}
+	lis, err := net.Listen("tcp", ":"+grpcPort)
+	if err != nil {
+		log.Fatalf("grpc listen: %v", err)
+	}
+	grpcSrv := grpcserver.New()
+	statusv1.RegisterStatusServiceServer(grpcSrv, grpcserver.NewStatusServer())
+	go func() {
+		log.Printf("[%s] grpc listening on :%s", os.Getenv("SERVICE_ID"), grpcPort)
+		if err := grpcSrv.Serve(lis); err != nil {
+			log.Fatalf("grpc serve: %v", err)
+		}
+	}()
+
+	// consul revisa /heartbeat y no /health cada 5s por http y el health de grpc por el otro puerto
+	// son dos registros -> status y status-grpc
 	if err := consul.Register("/heartbeat"); err != nil {
+		log.Printf("WARNING: %v", err)
+	}
+	if err := consul.RegisterGRPC(); err != nil {
 		log.Printf("WARNING: %v", err)
 	}
 
 	srv := &http.Server{Addr: ":" + port, Handler: r}
 
-	// Docker manda SIGTERM cuando hacemos "docker stop". Al recibirlo nos
-	// damos de baja de Consul y luego apagamos el servidor sin cortar nada.
+	// docker manda SIGTERM con "docker stop"
+	// al recibirlo nos damos de baja de consul y apagamos los dos servidores sin cortar nada
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
 		consul.Deregister()
+		grpcSrv.GracefulStop()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		srv.Shutdown(ctx)

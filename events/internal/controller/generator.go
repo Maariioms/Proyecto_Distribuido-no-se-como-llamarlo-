@@ -19,9 +19,9 @@ var eventTypes = []string{
 
 var severities = []string{"low", "medium", "high", "critical"}
 
-// StartGenerator lanza UNA goroutine que corre en paralelo al servidor
-// HTTP, insertando un evento simulado cada `interval`. Se llama una sola
-// vez en main() — la goroutine sigue viva mientras el programa corre.
+// lanza UNA goroutine que corre en paralelo al servidor http
+// cada `interval` inserta un evento simulado
+// se llama una vez en main y la goroutine sigue viva mientras el programa corra
 func StartGenerator(repo repository.EventRepository, interval time.Duration) {
 	go func() {
 		ticker := time.NewTicker(interval)

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+// contrato de status -> solo dice como esta el nodo, uptime, checks, etc
+package status.v1;
+
+option go_package = "soc-mvp-distribuido/gen/statuspb/status/v1;statusv1";
+
+service StatusService {
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+}
+
+message GetStatusRequest {}
+
+message GetStatusResponse {
+  string status = 1;
+  string service_id = 2;
+  // uptime va como texto, ej "2m30s", igual que en el json del http
+  string uptime = 3;
+  int64 checks_done = 4;
+}

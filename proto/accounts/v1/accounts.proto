@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+// contrato de accounts -> lo que se le puede pedir a este servicio por grpc
+// el v1 es la version del contrato y si luego cambia algo feo se hace v2
+package accounts.v1;
+
+// esto solo da el nombre del paquete go y es lo que va despues del ;
+// el path real depende de donde caiga el archivo generado en cada modulo
+option go_package = "soc-mvp-distribuido/gen/accountspb/accounts/v1;accountsv1";
+
+import "google/protobuf/timestamp.proto";
+
+// basicamente la interfaz del servicio igual que AccountRepository pero de red
+service AccountService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+}
+
+// la cuenta que regresamos
+// el password_hash NO va aqui y nunca sale del servicio
+message Account {
+  uint64 id = 1;
+  string username = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message RegisterResponse {
+  Account account = 1;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  Account account = 1;
+}

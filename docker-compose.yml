@@ -30,6 +30,11 @@ services:
       CONSUL_HTTP_ADDR: "http://consul:8500"
       DATABASE_URL: "host=postgres user=soc password=soc dbname=soc port=5432 sslmode=disable"
       PORT: "8080"
+      # a donde avisa accounts cuando hay login o registro, grpc directo a events
+      EVENTS_GRPC_ADDR: "events:50051"
+    ports:
+      # puerto grpc de afuera -> adentro pa probar con grpcurl desde tu compu
+      - "50051:50051"
     depends_on:
       consul:
         condition: service_started
@@ -45,6 +50,8 @@ services:
       CONSUL_HTTP_ADDR: "http://consul:8500"
       DATABASE_URL: "host=postgres user=soc password=soc dbname=soc port=5432 sslmode=disable"
       PORT: "8080"
+    ports:
+      - "50052:50051"
     depends_on:
       consul:
         condition: service_started
@@ -60,6 +67,8 @@ services:
       CONSUL_HTTP_ADDR: "http://consul:8500"
       SQLITE_PATH: "/data/status.db"
       PORT: "8080"
+    ports:
+      - "50053:50051"
     volumes:
       - statusdata:/data
     depends_on:
@@ -72,6 +81,8 @@ services:
       PORT: "9000"
     ports:
       - "9000:9000"
+      # grpc del load balancer que reenvia a los servicios *-grpc de consul
+      - "9001:9001"
     depends_on:
       - consul
       - accounts

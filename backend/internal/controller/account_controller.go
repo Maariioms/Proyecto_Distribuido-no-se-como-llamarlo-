@@ -5,15 +5,19 @@ import (
 	"errors"
 	"net/http"
 
+	"soc-mvp-distribuido/backend/internal/events"
 	"soc-mvp-distribuido/backend/internal/repository"
 )
 
 type AccountController struct {
 	repo repository.AccountRepository
+	// como avisamos a events que paso algo, ej un login o un registro
+	// es una interfaz igual que repo y el controller no sabe si es grpc o kafka
+	publisher events.Publisher
 }
 
-func NewAccountController(repo repository.AccountRepository) *AccountController {
-	return &AccountController{repo: repo}
+func NewAccountController(repo repository.AccountRepository, publisher events.Publisher) *AccountController {
+	return &AccountController{repo: repo, publisher: publisher}
 }
 
 type credentialsRequest struct {
@@ -41,6 +45,7 @@ func (c *AccountController) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not create account", http.StatusInternalServerError)
 		return
 	}
+	c.publisher.Publish(r.Context(), "account_created", "low")
 	writeJSON(w, http.StatusCreated, account)
 }
 
@@ -53,6 +58,7 @@ func (c *AccountController) Login(w http.ResponseWriter, r *http.Request) {
 
 	account, err := c.repo.Authenticate(r.Context(), req.Username, req.Password)
 	if errors.Is(err, repository.ErrInvalidCredentials) {
+		c.publisher.Publish(r.Context(), "login_failed", "medium")
 		http.Error(w, "invalid username or password", http.StatusUnauthorized)
 		return
 	}
@@ -60,6 +66,7 @@ func (c *AccountController) Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	c.publisher.Publish(r.Context(), "login_success", "low")
 	writeJSON(w, http.StatusOK, account)
 }
 

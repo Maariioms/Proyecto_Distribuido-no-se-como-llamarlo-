@@ -17,17 +17,17 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-// routeEntry es una fila de routes.json: "los paths que empiezan con Prefix
-// le tocan al servicio Service de Consul". Las instancias ya NO viven aqui,
-// se las pregunta el middleware a Consul (service discovery dinamico).
+// una fila de routes.json -> los paths que empiezan con Prefix le tocan al servicio Service de consul
+// las instancias ya NO viven aqui y antes estaban en services.json
+// ahora el middleware se las pregunta a consul y eso lo vuelve discovery dinamico
 type routeEntry struct {
 	Prefix  string `json:"prefix"`
 	Service string `json:"service"`
 }
 
-// balancer reparte peticiones entre las instancias SANAS de UN servicio.
-// El contador es un solo valor -> atomic. La lista de instancias la leen
-// muchas peticiones a la vez y solo se reemplaza cada 5s -> RWMutex.
+// reparte las peticiones entre las instancias SANAS de UN servicio
+// el contador es un solo numero -> atomic
+// la lista de instancias la leen muchas peticiones a la vez y solo se cambia cada 5s -> RWMutex
 type balancer struct {
 	prefix  string
 	service string
@@ -47,7 +47,7 @@ func (b *balancer) setInstances(instances []*url.URL) {
 	b.instances = instances
 }
 
-// pick devuelve la siguiente instancia (round-robin) o nil si no hay ninguna sana.
+// regresa la siguiente instancia con round-robin o nil si no hay ninguna sana
 func (b *balancer) pick() *url.URL {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -59,7 +59,7 @@ func (b *balancer) pick() *url.URL {
 	return b.instances[i%uint64(len(b.instances))]
 }
 
-// consulEntry es la parte de la respuesta de Consul que nos interesa.
+// lo unico que nos importa de la respuesta de consul y el json ignora el resto
 type consulEntry struct {
 	Service struct {
 		Address string `json:"Address"`
@@ -67,8 +67,8 @@ type consulEntry struct {
 	} `json:"Service"`
 }
 
-// queryConsul pregunta "dame las instancias de este servicio que estan pasando
-// su health check". El ?passing=true es lo que filtra a las caidas.
+// le pregunta a consul "dame las instancias de este servicio que pasan su health check"
+// el ?passing=true es lo que filtra a las caidas
 func queryConsul(consulAddr, service string) ([]*url.URL, error) {
 	reqURL := fmt.Sprintf("%s/v1/health/service/%s?passing=true", consulAddr, service)
 	client := http.Client{Timeout: 3 * time.Second}
@@ -99,8 +99,8 @@ func queryConsul(consulAddr, service string) ([]*url.URL, error) {
 	return instances, nil
 }
 
-// refreshAll actualiza la lista de instancias de cada servicio. Si Consul no
-// contesta, se queda con la lista anterior en vez de dejar todo vacio.
+// actualiza la lista de instancias de cada servicio
+// si consul no contesta se queda con la lista anterior y no deja todo vacio
 func refreshAll(balancers []*balancer, consulAddr string) {
 	for _, b := range balancers {
 		instances, err := queryConsul(consulAddr, b.service)
@@ -112,8 +112,8 @@ func refreshAll(balancers []*balancer, consulAddr string) {
 	}
 }
 
-// startDiscoveryLoop refresca una vez ya y luego cada `interval`, en una
-// goroutine aparte (mismo patron del ticker del generador de events).
+// refresca una vez de inmediato y luego cada `interval` en una goroutine aparte
+// mismo patron del ticker del generador de events
 func startDiscoveryLoop(balancers []*balancer, consulAddr string, interval time.Duration) {
 	refreshAll(balancers, consulAddr)
 
@@ -127,8 +127,8 @@ func startDiscoveryLoop(balancers []*balancer, consulAddr string, interval time.
 	}()
 }
 
-// loadRoutes lee routes.json y arma un balancer (todavia sin instancias) por ruta.
-// Solo se llama UNA vez, en main().
+// lee routes.json y arma un balancer por ruta que todavia no tiene instancias
+// se llama UNA vez en main
 func loadRoutes(path string) []*balancer {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -147,8 +147,8 @@ func loadRoutes(path string) []*balancer {
 	return balancers
 }
 
-// findBalancer decide a que servicio pertenece una peticion mirando el
-// prefijo de su path. Devuelve el primero que calce.
+// decide a que servicio le toca la peticion mirando el prefijo del path
+// regresa el primero que calce
 func findBalancer(balancers []*balancer, path string) *balancer {
 	for _, b := range balancers {
 		if strings.HasPrefix(path, b.prefix) {
@@ -172,6 +172,21 @@ func main() {
 	balancers := loadRoutes(routesPath)
 	startDiscoveryLoop(balancers, consulAddr, 5*time.Second)
 	log.Printf("loaded %d routes from %s, discovery via %s", len(balancers), routesPath, consulAddr)
+
+	// ---- grpc ----
+	// pa grpc busca en consul los servicios "*-grpc" que registra cada backend con RegisterGRPC
+	// es el mismo balancer y el mismo loop de arriba
+	// solo cambian los nombres que pregunta
+	accountsGRPC := &balancer{service: "accounts-grpc"}
+	eventsGRPC := &balancer{service: "events-grpc"}
+	statusGRPC := &balancer{service: "status-grpc"}
+	startDiscoveryLoop([]*balancer{accountsGRPC, eventsGRPC, statusGRPC}, consulAddr, 5*time.Second)
+
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "9001"
+	}
+	startGRPCProxy(grpcPort, accountsGRPC, eventsGRPC, statusGRPC)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)

@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+// contrato de events -> crear, listar y buscar un evento de seguridad por id
+package events.v1;
+
+option go_package = "soc-mvp-distribuido/gen/eventspb/events/v1;eventsv1";
+
+import "google/protobuf/timestamp.proto";
+
+service EventService {
+  rpc CreateEvent(CreateEventRequest) returns (CreateEventResponse);
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+  rpc GetEvent(GetEventRequest) returns (GetEventResponse);
+}
+
+message Event {
+  uint64 id = 1;
+  string type = 2;
+  string severity = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message CreateEventRequest {
+  string type = 1;
+  string severity = 2;
+}
+
+message CreateEventResponse {
+  Event event = 1;
+}
+
+// vacio pq listar no necesita parametros pero en grpc siempre va un mensaje
+message ListEventsRequest {}
+
+message ListEventsResponse {
+  // repeated es una lista y es lo mismo que []Event en go
+  repeated Event events = 1;
+}
+
+message GetEventRequest {
+  uint64 id = 1;
+}
+
+message GetEventResponse {
+  Event event = 1;
+}
