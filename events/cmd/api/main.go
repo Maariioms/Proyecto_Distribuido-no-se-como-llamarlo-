@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,9 +16,11 @@ import (
 
 	eventsv1 "soc-mvp-distribuido/events/gen/eventspb/events/v1"
 	"soc-mvp-distribuido/events/internal/consul"
+	"soc-mvp-distribuido/events/internal/consumer"
 	"soc-mvp-distribuido/events/internal/controller"
 	"soc-mvp-distribuido/events/internal/db"
 	"soc-mvp-distribuido/events/internal/grpcserver"
+	"soc-mvp-distribuido/events/internal/kafkax"
 	"soc-mvp-distribuido/events/internal/repository"
 )
 
@@ -32,7 +35,20 @@ func main() {
 		log.Fatalf("db connect: %v", err)
 	}
 
-	eventRepo := repository.NewGormEventRepository(gormDB)
+	var eventRepo repository.EventRepository = repository.NewGormEventRepository(gormDB)
+
+	// ---- kafka ----
+	// si hay KAFKA_BROKERS el repo se envuelve pa publicar en events.created cada evento que guarda
+	// y arranca el consumidor que lee accounts.activity
+	// si no hay todo sigue como antes
+	appCtx, stopApp := context.WithCancel(context.Background())
+	defer stopApp()
+	if brokers := os.Getenv("KAFKA_BROKERS"); brokers != "" {
+		writer := kafkax.NewWriter(strings.Split(brokers, ","), kafkax.TopicEventsCreated)
+		eventRepo = repository.NewPublishingRepository(eventRepo, writer)
+		consumer.StartAccountsConsumer(appCtx, brokers, eventRepo)
+	}
+
 	eventController := controller.NewEventController(eventRepo)
 
 	controller.StartGenerator(eventRepo, 15*time.Second)
@@ -91,6 +107,8 @@ func main() {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
+		// cancela el ctx y el consumidor de kafka termina
+		stopApp()
 		consul.Deregister()
 		grpcSrv.GracefulStop()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -24,12 +24,22 @@ func Status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	eventsSeen, bySeverity := instance.EventCounts()
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":      "ok",
 		"service_id":  os.Getenv("SERVICE_ID"),
 		"uptime":      uptime.String(),
 		"checks_done": checks,
+		// lo que status ha contado leyendo el topico events.created de kafka
+		"events_seen":        eventsSeen,
+		"events_by_severity": bySeverity,
 	})
+}
+
+// lo llama el consumidor de kafka y asi no toca la variable instance desde otro paquete
+func RegisterEvent(severity string) {
+	instance.RegisterEvent(severity)
 }
 
 // la ruta que revisa consul cada 5s

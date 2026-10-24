@@ -4,6 +4,7 @@ go 1.22
 
 require (
 	github.com/go-chi/chi/v5 v5.0.12
+	github.com/segmentio/kafka-go v0.4.47
 	google.golang.org/grpc v1.64.1
 	google.golang.org/protobuf v1.34.2
 	gorm.io/driver/postgres v1.5.9
@@ -17,6 +18,8 @@ require (
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/klauspost/compress v1.15.9 // indirect
+	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect

@@ -192,3 +192,121 @@ no se pudo avisar a events (login_success): rpc error: code = Unavailable ...
 ### Nota
 
 Pa que `Register` regresara `AlreadyExists` y el http un 409 hubo que activar `TranslateError: true` en `backend/internal/db/db.go`. Sin eso gorm no convertia el error del username repetido y salia un 500.
+
+## Kafka
+
+-   Cola de mensajeria asincrona entre los backends con `apache/kafka:3.8.0` en modo KRaft osea sin zookeeper, un solo nodo que es broker y controller
+-   Mismo esquema del `kafka_example` del profe -> `segmentio/kafka-go` y un helper `kafkax` con `EnsureTopic` `NewWriter` `Consume` y `processWithRetry`
+-   Antes accounts le avisaba a events por grpc y si events estaba caido el aviso se perdia. Ahora accounts deja el mensaje en la cola y events lo lee cuando puede
+
+```
+accounts --> [accounts.activity] --> events --> [events.created] --> status
+                     |
+                     +--> [accounts.activity.dlq]   los que fallan 3 veces
+```
+
+### Topicos y quien los usa
+
+| Topico | Productor | Consumidor, group | Pa que |
+|---|---|---|---|
+| `accounts.activity` | accounts | events, `events-writer` | `account_created` `login_success` `login_failed` y events los guarda en postgres |
+| `events.created` | events | status, `status-counter` | cada evento guardado avisa y status los cuenta |
+| `accounts.activity.dlq` | events | nadie | mensajes que fallaron todos los intentos |
+
+-   3 particiones por topico y replication 1 pq es un solo broker
+-   Mensaje json `{type, severity, at}` y la key es el `type` pa que el mismo tipo caiga en la misma particion y se mantenga el orden
+-   Cada group tiene su propia copia de los mensajes. Si despues otro servicio se une con otro group tambien recibe todo
+
+### Como esta armado
+
+-   `*/internal/kafkax/` -> el helper, igual en backend events y status como `consul.go`. `topics.go` tiene los nombres de topicos y groups
+-   `backend/internal/events/kafka_publisher.go` -> implementa la interfaz `Publisher` que ya existia. Por eso el controller de accounts no cambio. Si hay `KAFKA_BROKERS` usa kafka, si no cae a grpc y si no hay nada usa `Noop`
+-   `events/internal/consumer/` -> lee `accounts.activity` y llama `repo.Create`
+-   `events/internal/repository/publishing_repository.go` -> envuelve al repo y despues de guardar publica en `events.created`. Asi el generador el http y el grpc tambien avisan sin saber de kafka
+-   `status/internal/consumer/` -> lee `events.created` y sube contadores en el Tracker. Se ven en `events_seen` y `events_by_severity` del `/health`
+-   El offset se confirma hasta que el handler termina bien. Es at-least-once y si el servicio se cae a la mitad el mensaje puede llegar dos veces. Un id unico por evento lo arreglaria pero cambia el esquema y no se hizo
+-   Docker -> el servicio `kafka` tiene dos puertas. `kafka:9092` pa los contenedores y `localhost:29092` pa tu compu
+
+### Probar
+
+```bash
+docker compose up -d --build
+```
+
+**1. Topicos creados**
+
+```
+$ docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+__consumer_offsets
+accounts.activity
+accounts.activity.dlq
+events.created
+
+$ docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic accounts.activity
+Topic: accounts.activity   PartitionCount: 3   ReplicationFactor: 1
+	Partition: 0   Leader: 1   Replicas: 1   Isr: 1
+	Partition: 1   Leader: 1   Replicas: 1   Isr: 1
+	Partition: 2   Leader: 1   Replicas: 1   Isr: 1
+```
+
+**2. Registro y logins por el middleware, y mensajes crudos en la cola**
+
+```
+$ curl -X POST localhost:9000/api/accounts/register -H "Content-Type: application/json" -d '{"username":"kafka.demo","password":"demo1234"}'
+$ curl -X POST localhost:9000/api/accounts/login ... "demo1234"    # bien
+$ curl -X POST localhost:9000/api/accounts/login ... "mala"        # falla
+
+$ docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic accounts.activity --from-beginning --property print.key=true
+login_success    {"type":"login_success","severity":"low","at":"2026-10-24T00:32:56.116023281Z"}
+account_created  {"type":"account_created","severity":"low","at":"2026-10-24T00:32:55.882862288Z"}
+login_failed     {"type":"login_failed","severity":"medium","at":"2026-10-24T00:32:56.326313271Z"}
+```
+
+Logs de events con `docker compose logs events`:
+
+```
+kafka: accounts.activity partition=2 offset=0 -> evento account_created guardado
+kafka: accounts.activity partition=0 offset=0 -> evento login_success guardado
+kafka: accounts.activity partition=1 offset=0 -> evento login_failed guardado
+```
+
+Y `GET /api/events` ya los muestra como `account_created` `login_success` y `login_failed`. Notar que cada tipo cayo en una particion distinta por la key.
+
+**3. Status cuenta lo que pasa por `events.created`**
+
+```
+$ curl localhost:9000/health
+{"checks_done":1,"events_by_severity":{"low":2,"medium":2},"events_seen":4,"service_id":"status-1","status":"ok","uptime":"29s"}
+```
+
+Sube solo con el generador de events cada 15s.
+
+**4. Lo asincrono, events caido**
+
+Esto es lo que grpc no podia. Se para events, se hacen 3 logins y siguen respondiendo 200. Los mensajes esperan en la cola, el `LAG` del group es lo que falta por leer:
+
+```
+$ docker compose stop events
+$ curl ... /login    # x3
+login 200
+login 200
+login 200
+
+$ docker exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group events-writer
+GROUP          TOPIC              PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG
+events-writer  accounts.activity  0          1               4               3
+events-writer  accounts.activity  1          1               1               0
+events-writer  accounts.activity  2          1               1               0
+
+$ docker compose start events
+kafka: accounts.activity partition=0 offset=1 -> evento login_success guardado
+kafka: accounts.activity partition=0 offset=2 -> evento login_success guardado
+kafka: accounts.activity partition=0 offset=3 -> evento login_success guardado
+```
+
+Los 3 eventos aparecieron al volver y no se perdio ninguno.
+
+### Nota
+
+-   La DLQ se crea pero no se probo forzando un fallo. Solo se usa si un mensaje falla 3 intentos seguidos
+-   El grpc de accounts a events sigue en el codigo como fallback. En el compose esta comentado `EVENTS_GRPC_ADDR` pa que de verdad use kafka

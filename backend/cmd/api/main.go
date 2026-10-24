@@ -36,9 +36,18 @@ func main() {
 	accountRepo := repository.NewGormAccountRepository(gormDB)
 
 	// a quien le avisamos cuando hay login o registro
-	// si no hay EVENTS_GRPC_ADDR no avisamos a nadie y usa Noop pa que todo siga igual
+	// si hay KAFKA_BROKERS publica en kafka y es lo que usa docker compose
+	// si no, y hay EVENTS_GRPC_ADDR, le avisa a events por grpc como antes
+	// si no hay ninguna usa Noop pa que todo siga igual
 	var publisher events.Publisher = events.Noop{}
-	if addr := os.Getenv("EVENTS_GRPC_ADDR"); addr != "" {
+	if brokers := os.Getenv("KAFKA_BROKERS"); brokers != "" {
+		p, err := events.NewKafkaPublisher(brokers)
+		if err != nil {
+			log.Printf("WARNING: no se pudo armar el publisher de kafka: %v", err)
+		} else {
+			publisher = p
+		}
+	} else if addr := os.Getenv("EVENTS_GRPC_ADDR"); addr != "" {
 		p, err := events.NewGRPCPublisher(addr)
 		if err != nil {
 			log.Printf("WARNING: no se pudo armar el publisher de events: %v", err)

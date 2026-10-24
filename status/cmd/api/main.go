@@ -17,6 +17,7 @@ import (
 
 	statusv1 "soc-mvp-distribuido/status/gen/statuspb/status/v1"
 	"soc-mvp-distribuido/status/internal/consul"
+	"soc-mvp-distribuido/status/internal/consumer"
 	"soc-mvp-distribuido/status/internal/controller"
 	"soc-mvp-distribuido/status/internal/grpcserver"
 )
@@ -35,6 +36,14 @@ func main() {
 
 	if err := controller.InitTracker(db); err != nil {
 		log.Fatalf("init tracker: %v", err)
+	}
+
+	// ---- kafka ----
+	// si hay KAFKA_BROKERS arranca el consumidor que cuenta los eventos que va guardando events
+	appCtx, stopApp := context.WithCancel(context.Background())
+	defer stopApp()
+	if brokers := os.Getenv("KAFKA_BROKERS"); brokers != "" {
+		consumer.StartEventsConsumer(appCtx, brokers)
 	}
 
 	r := chi.NewRouter()
@@ -86,6 +95,8 @@ func main() {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
+		// cancela el ctx y el consumidor de kafka termina
+		stopApp()
 		consul.Deregister()
 		grpcSrv.GracefulStop()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -14,6 +14,12 @@ type Tracker struct {
 	db        *sql.DB
 	startedAt time.Time
 	checks    int
+
+	// lo que va contando el consumidor de kafka del topico events.created
+	// vive solo en memoria y si el servicio reinicia vuelve a cero
+	// kafka ya recuerda hasta donde leyo este group y no repite los mensajes viejos
+	eventsSeen int
+	bySeverity map[string]int
 }
 
 // la unica instancia del Tracker
@@ -34,8 +40,33 @@ func InitTracker(db *sql.DB) error {
 	instance = &Tracker{
 		db:        db,
 		startedAt: time.Now(),
+
+		bySeverity: make(map[string]int),
 	}
 	return nil
+}
+
+// lo llama el consumidor de kafka por cada evento nuevo
+// Mutex y no atomic pq tocan el contador total y el mapa juntos
+func (t *Tracker) RegisterEvent(severity string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.eventsSeen++
+	t.bySeverity[severity]++
+}
+
+// regresa una COPIA del mapa
+// si regresara el mismo, quien lo lea lo estaria leyendo sin el candado mientras el consumidor lo cambia
+func (t *Tracker) EventCounts() (total int, bySeverity map[string]int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	copied := make(map[string]int, len(t.bySeverity))
+	for k, v := range t.bySeverity {
+		copied[k] = v
+	}
+	return t.eventsSeen, copied
 }
 
 // usa Mutex y no atomic a proposito
