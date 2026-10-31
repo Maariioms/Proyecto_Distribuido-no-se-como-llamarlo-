@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, LogIn, ShieldHalf } from "lucide-react";
 import { login, ApiError } from "@/lib/api";
+import { saveSession } from "@/lib/session";
 
 // 12 cometas a 30° entre sí, con duración/retraso variados para que no se
 // vean sincronizadas.
@@ -43,7 +44,9 @@ export default function Home() {
     setError("");
     setCargando(true);
     try {
-      await login(username, password);
+      const account = await login(username, password);
+      // guarda el nombre pa que el dashboard sepa quien entro
+      saveSession(account.username);
       router.push("/home");
     } catch (err) {
       setError(

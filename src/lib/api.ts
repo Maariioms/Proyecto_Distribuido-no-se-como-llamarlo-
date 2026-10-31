@@ -36,11 +36,22 @@ export async function listEvents(): Promise<Event[]> {
   return res.json();
 }
 
+export async function getEvent(id: number): Promise<Event> {
+  const res = await fetch(`${API_URL}/api/events/${id}`, { cache: "no-store" });
+  if (res.status === 404) throw new ApiError("Ese evento ya no existe.");
+  if (!res.ok) throw new ApiError("No se pudo cargar el detalle del evento.");
+  return res.json();
+}
+
 export interface ServiceStatus {
   status: string;
   service_id: string;
   uptime: string;
   checks_done: number;
+  // lo que status cuenta leyendo el topico events.created de kafka
+  // opcionales pq si kafka esta apagado status no los manda
+  events_seen?: number;
+  events_by_severity?: Record<string, number>;
 }
 
 export async function getStatus(): Promise<ServiceStatus> {

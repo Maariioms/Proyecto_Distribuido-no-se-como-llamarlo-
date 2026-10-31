@@ -15,8 +15,10 @@
   --c-border-accent:  #6a3aaa;
 
   --c-text:           #f0e8fe;
-  --c-text-2:         #a06adb;
-  --c-text-3:         #6a3d8a;
+  /* text-2 y text-3 subidos pa pasar contraste sobre surface
+     text-2 -> 7.1:1 y text-3 -> 5.3:1. Antes eran 4.9:1 y 2.3:1 */
+  --c-text-2:         #b294d6;
+  --c-text-3:         #9b7bc4;
   --c-text-dim:       #4a2a7a;
 
   --c-accent:         #9a4ad9;
@@ -49,6 +51,7 @@
 
   --shadow-1: 0 1px 2px rgba(0,0,0,.24), 0 1px 1px rgba(0,0,0,.16);
   --shadow-2: 0 4px 10px rgba(0,0,0,.28), 0 1px 2px rgba(0,0,0,.20);
+  --shadow-3: 0 12px 28px rgba(0,0,0,.40), 0 2px 6px rgba(0,0,0,.28);
 
   color-scheme: dark;
 }
@@ -164,16 +167,119 @@ select:focus-visible {
   animation-delay: calc(var(--i, 0) * var(--stagger));
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   Dashboard en vivo.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* puntito "EN VIVO" que respira, solo opacity y transform */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.7); }
+}
+.live-dot { animation: live-pulse 1.6s var(--ease-io) infinite; }
+
+/* contador que sube -> un saltito, nunca al bajar */
+@keyframes bump {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.bump { animation: bump 320ms var(--ease-io); display: inline-block; }
+
+/* fila recien llegada -> destello que se apaga solo
+   usa box-shadow inset pq en una tabla no se puede animar el fondo del tr sin layout */
+@keyframes row-new {
+  0%   { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--c-accent) 28%, transparent); }
+  100% { box-shadow: inset 0 0 0 999px transparent; }
+}
+.row-new { animation: row-new 2200ms var(--ease-io) both; }
+
+/* skeleton mientras carga */
+@keyframes skeleton-shimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--c-surface) 25%,
+    var(--c-border) 37%,
+    var(--c-surface) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+/* toast y panel lateral entran con @starting-style, sin libreria */
+.toast-in {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--dur-modal) var(--ease-io),
+              transform var(--dur-modal) var(--ease-io);
+}
+@starting-style {
+  .toast-in { opacity: 0; transform: translateY(8px); }
+}
+
+.panel-in {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity var(--dur-modal) var(--ease-io),
+              transform var(--dur-modal) var(--ease-io);
+}
+@starting-style {
+  .panel-in { opacity: 0; transform: translateX(24px); }
+}
+
+.backdrop-in {
+  opacity: 1;
+  transition: opacity var(--dur-modal) var(--ease-io);
+}
+@starting-style {
+  .backdrop-in { opacity: 0; }
+}
+
+/* hover sutil en filas y tarjetas clickeables */
+.hover-lift {
+  transition: transform var(--dur-rapido) var(--ease-io),
+              box-shadow var(--dur-rapido) var(--ease-io);
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+}
+
+.row-click { cursor: pointer; transition: background-color var(--dur-rapido) var(--ease-io); }
+.row-click:hover { background: color-mix(in srgb, var(--c-accent) 8%, transparent); }
+
+/* focus visible pa botones y links, el de los inputs ya esta arriba */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--c-accent-2);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glow-pulse,
   .comet,
-  .card-in {
+  .card-in,
+  .live-dot,
+  .bump,
+  .row-new,
+  .skeleton {
     animation: none !important;
   }
-  .btn-press {
+  .btn-press,
+  .toast-in,
+  .panel-in,
+  .backdrop-in,
+  .hover-lift,
+  .row-click {
     transition: none;
   }
-  .btn-press:active {
+  .btn-press:active,
+  .hover-lift:hover {
     transform: none;
   }
 }
